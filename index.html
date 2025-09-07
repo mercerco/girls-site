@@ -128,37 +128,86 @@
     const GALLERY_JSON = 'pics/gallery.json';
 
     // Helper to parse Google Visualization JSON (no API key needed as long as sheet is public to view)
-    async function fetchSheetRows(){
-      const base = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json${SHEET_GID?`&gid=${SHEET_GID}`:''}`;
-      const res = await fetch(base, {cache:'no-store'});
-      const text = await res.text();
-      const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
-      if(!match) return [];
-      const json = JSON.parse(match[1]);
-      const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-      const dateIdx = cols.findIndex(c => ['date','game date','day'].includes(c));
-      const nameIdx = cols.findIndex(c => ['name','volunteer','snacks','snack','parent'].includes(c));
-      const rows = (json.table.rows||[]).map(r=>{
-        const c = r.c||[];
-        const rawDate = c[dateIdx]?.v; // can be string or serial
-        const name = (c[nameIdx]?.v||'').toString().trim();
-        let d=null;
-        if(typeof rawDate === 'string'){
-          d = new Date(rawDate);
-        }else if(typeof rawDate === 'number'){
-          // Google Sheets serial date (days since 1899-12-30)
-          const ms = (rawDate - 25569) * 86400 * 1000;
-          d = new Date(ms);
-        }else if(rawDate?.f){
-          d = new Date(rawDate.f);
-        }
-        if(d && !isNaN(d)){
-          d.setHours(0,0,0,0);
-        }
-        return {date:d, name};
-      }).filter(r=>r.date);
-      return rows;
+    async function fetchSheetRows()<script>
+// ... keep your existing code above
+
+// NEW: safer date parser that handles GViz "Date(...)" + formatted + serial + plain strings
+function parseGvizDate(cell) {
+  if (!cell) return null;
+
+  // 1) GViz Date(...) string (e.g., "Date(2025,9,27,0,0,0)")
+  if (typeof cell.v === 'string') {
+    const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)(?:,[^)]*)?\)$/);
+    if (m) {
+      const y = +m[1], mth = +m[2], d = +m[3];
+      // Note: GViz months are 0-based; JS Date is 0-based too, so this is correct.
+      return new Date(y, mth, d); // local midnight
     }
+  }
+
+  // 2) Formatted value (cell.f) — try parsing
+  if (cell.f) {
+    const d = new Date(cell.f);
+    if (!isNaN(d)) return d;
+  }
+
+  // 3) Numeric serial (Google Sheets)
+  if (typeof cell.v === 'number') {
+    const ms = (cell.v - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    if (!isNaN(d)) return d;
+  }
+
+  // 4) Plain string Date
+  if (typeof cell.v === 'string') {
+    const d = new Date(cell.v);
+    if (!isNaN(d)) return d;
+  }
+
+  return null;
+}
+
+async function fetchSheetRows() {
+  const SHEET_ID = '1lBwzSsPPwLKK5iAVljb9kOwr8EX5wlO8MJsrjKBTxIE';
+  const SHEET_GID = '471860143'; // your snack tab
+
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  const text = await res.text();
+  const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+  if (!match) return [];
+
+  const json = JSON.parse(match[1]);
+
+  // Try to find columns by common names
+  const cols = json.table.cols.map(c => (c.label || '').toLowerCase());
+  const dateIdx = cols.findIndex(c =>
+    ['date','game date','day','date (game)','game day'].includes(c)
+  );
+  const nameIdx = cols.findIndex(c =>
+    ['name','volunteer','snacks','snack','parent','snack volunteer'].includes(c)
+  );
+
+  const rows = (json.table.rows || []).map(r => {
+    const cells = r.c || [];
+    const dateCell = cells[dateIdx];
+    const nameCell = cells[nameIdx];
+
+    const d = parseGvizDate(dateCell);
+    const name = (nameCell?.v ?? '').toString().trim();
+
+    if (d && !isNaN(d)) d.setHours(0,0,0,0);
+    return d ? { date: d, name } : null;
+  }).filter(Boolean);
+
+  // Helpful debug in the browser console
+  console.log('Snack sheet columns:', cols);
+  console.log('Loaded snack rows:', rows);
+
+  return rows;
+}
+// ... keep your existing code below
+</script>
 
     // Load gallery.json from the repo and render thumbnails with GLightbox
     async function loadGallery(){
