@@ -386,7 +386,17 @@
           } else if(extendedProps?.type==='game'){
             alert(info.event.title);
           }
-        },
+        },eventContent: function(arg) {
+  const t = arg.event.title || '';
+  const i = t.indexOf('Snacks:');
+  if (i >= 0) {
+    const main = t.slice(0, i).trim();
+    const snack = t.slice(i).trim();
+    return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
+  }
+  return { html: `<div class="fc-title-main">${t}</div>` };
+},
+
       });
       calendar.render();
 
