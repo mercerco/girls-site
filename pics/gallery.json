@@ -1,1 +1,15 @@
 
+{
+  "images": [
+    {
+      "src": "pics/soccerball.jpg.png",
+      "thumb": "pics/soccerball.jpg.png",
+      "alt": "Team soccer ball on the field"
+    },
+    {
+      "src": "pics/soccergirls2.JPG",
+      "thumb": "pics/soccergirls2.JPG",
+      "alt": "Our girls’ team after practice"
+    }
+  ]
+}
