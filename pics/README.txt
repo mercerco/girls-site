@@ -1,0 +1,1 @@
+Add your photos in this folder and list them in gallery.json
