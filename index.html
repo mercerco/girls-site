@@ -9,8 +9,11 @@
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
-  <!-- PhotoSwipe gallery -->
-  <link rel="stylesheet" href="https://unpkg.com/photoswipe@5/dist/photoswipe.css">
+  <!-- lightGallery (UMD builds = safest on Netlify) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/css/lightgallery-bundle.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/lightgallery.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/plugins/zoom/lg-zoom.umd.min.js"></script>
+
   <style>
     :root{
       --bg:#f8fafc; --panel:#ffffff; --text:#0f172a; --muted:#475569; --accent:#0ea5e9;
@@ -71,11 +74,12 @@
         <h2>Team Photos</h2>
         <div class="content">
           <p class="help">Add images to <code>/pics/</code> and list them in <code>pics/gallery.json</code>. They’ll appear here in a mobile-friendly lightbox.</p>
-          <div id="photoGrid" class="pswp-gallery"></div>
+          <div id="photoGrid"></div>
           <details style="margin-top:.75rem"><summary>Gallery file format</summary>
             <pre>{
   "images": [
-    {"src":"pics/team1.jpg","thumb":"pics/team1.jpg","w":1600,"h":1200,"alt":"First practice"}
+    {"src":"pics/soccerball.jpg.png","thumb":"pics/soccerball.jpg.png","alt":"Team soccer ball on the field"},
+    {"src":"pics/soccergirls2.JPG","thumb":"pics/soccergirls2.JPG","alt":"Our girls’ team after practice"}
   ]
 }</pre>
           </details>
@@ -116,37 +120,40 @@
     /***************************
      * CONFIG (edit as needed) *
      ***************************/
-    // Snacks Sheet
     const SHEET_ID = '1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E';
     const SHEET_GID = '0';
-
-    // Gallery JSON file in your repo
     const GALLERY_JSON = 'pics/gallery.json';
 
-    /*********************
-     * PhotoSwipe loader *
-     *********************/
+    /**********************
+     * Gallery (safe init) *
+     **********************/
+    function initLightGallery(){
+      try{
+        lightGallery(document.getElementById('photoGrid'), {
+          selector: 'a',
+          plugins: [lgZoom],
+          speed: 300
+        });
+      }catch(e){
+        console.error('lightGallery failed to init:', e);
+      }
+    }
+
     async function loadGallery(){
       const grid = document.getElementById('photoGrid');
       grid.innerHTML = '<span class="help">Loading photos…</span>';
       try{
         const res = await fetch(GALLERY_JSON, {cache:'no-store'});
-        if(!res.ok) throw new Error('gallery.json not found');
+        if(!res.ok) throw new Error('pics/gallery.json not found');
         const data = await res.json();
         const images = Array.isArray(data.images) ? data.images : [];
-        if(!images.length) throw new Error('no images');
+        if(!images.length) throw new Error('No images in gallery.json');
 
-        // Build grid markup (anchors PhotoSwipe understands)
         grid.innerHTML = '';
         for(const img of images){
           const a = document.createElement('a');
           a.href = img.src;
-          if(img.w && img.h){
-            a.setAttribute('data-pswp-width', img.w);
-            a.setAttribute('data-pswp-height', img.h);
-          }
-          a.setAttribute('target','_blank');
-          a.setAttribute('rel','noopener');
+          a.setAttribute('data-sub-html', img.alt || '');
           const el = document.createElement('img');
           el.src = img.thumb || img.src;
           el.alt = img.alt || '';
@@ -154,19 +161,10 @@
           a.appendChild(el);
           grid.appendChild(a);
         }
-
-        // Init PhotoSwipe (loaded as ES modules on demand)
-        const PhotoSwipeLightbox = (await import('https://unpkg.com/photoswipe@5/dist/photoswipe-lightbox.esm.js')).default;
-        const lightbox = new PhotoSwipeLightbox({
-          gallery: '#photoGrid',
-          children: 'a',
-          pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.js'),
-        });
-        lightbox.init();
-
+        initLightGallery();
       }catch(err){
         console.warn('Gallery load error:', err);
-        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and your images to <code>/pics/</code>.</p>';
+        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and images to <code>/pics/</code>.</p>';
       }
     }
 
@@ -176,7 +174,7 @@
     function parseGvizDate(cell){
       if(!cell) return null;
       if(typeof cell.v === 'string'){
-        const m = cell.v.match(/^Date\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
+        const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)/);
         if(m){ return new Date(+m[1], +m[2], +m[3]); }
       }
       if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
@@ -192,7 +190,7 @@
         const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
         const res = await fetch(url, {cache:'no-store'});
         const text = await res.text();
-        const match = text.match(/google\\.visualization\\.Query\\.setResponse\\((.*)\\);/s);
+        const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
         if(!match) throw new Error('GViz wrapper missing');
         const json = JSON.parse(match[1]);
         const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
@@ -376,15 +374,12 @@
     /******************
      * App bootstrap  *
      ******************/
-    let calendar;
-    async function init(){
-      await loadGallery();
-
+    async function startCalendar(){
       const rows = await fetchSnackRows();
       const snackMap = rowsToSnackMap(rows);
 
       const calendarEl = document.getElementById('calendar');
-      calendar = new FullCalendar.Calendar(calendarEl, {
+      const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
         firstDay: 1,
@@ -402,6 +397,7 @@
       });
       calendar.render();
 
+      // background refresh for snack names
       setInterval(async ()=>{
         const freshRows = await fetchSnackRows();
         const freshMap = rowsToSnackMap(freshRows);
@@ -416,7 +412,11 @@
       }, 10 * 60 * 1000);
     }
 
-    init();
+    // Run both; gallery failures won't block the calendar.
+    document.addEventListener('DOMContentLoaded', () => {
+      loadGallery().catch(()=>{});
+      startCalendar().catch(err=>console.error('Calendar init error:', err));
+    });
   </script>
 </body>
 </html>
