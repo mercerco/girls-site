@@ -9,10 +9,8 @@
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
-  <!-- GLightbox for the photo lightbox -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
-
+  <!-- PhotoSwipe gallery -->
+  <link rel="stylesheet" href="https://unpkg.com/photoswipe@5/dist/photoswipe.css">
   <style>
     :root{
       --bg:#f8fafc; --panel:#ffffff; --text:#0f172a; --muted:#475569; --accent:#0ea5e9;
@@ -42,7 +40,10 @@
     .fc .break-event{background:var(--break)!important;border-color:var(--break)!important}
     .help{font-size:.9rem;color:var(--muted)}
     footer{padding:2rem 0;color:var(--muted)}
-    .glightbox-clean .gslide-description{max-height:30vh;overflow:auto}
+    /* Photo grid */
+    #photoGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+    #photoGrid a{display:block;border-radius:10px;overflow:hidden}
+    #photoGrid img{width:100%;height:100%;object-fit:cover;display:block}
     .btn{display:inline-flex;align-items:center;gap:.5rem;background:var(--text);color:#fff;padding:.6rem .9rem;border-radius:12px}
     .btn:hover{opacity:.9}
     .btn.secondary{background:#111827}
@@ -57,7 +58,7 @@
         <h1>1st Grade Girls Soccer — Fall 2025</h1>
       </div>
       <nav class="nav">
-        <a class="btn" id="snackLink" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E/edit?gid=0#gid=0">🍎 Snack Sign‑Up (Live Sheet)</a>
+        <a class="btn" id="snackLink" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E/edit?gid=0#gid=0">🍎 Snack Sign-Up (Live Sheet)</a>
         <a class="btn secondary" href="#gallery">📷 Photos</a>
       </nav>
     </div>
@@ -65,30 +66,23 @@
 
   <main class="wrap">
     <div class="grid">
-      <!-- Photos / Lightbox Panel -->
+      <!-- Photos -->
       <section class="panel" id="gallery">
         <h2>Team Photos</h2>
         <div class="content">
-          <p class="help">Drop JPG/PNG files into <code>/pics/</code> in your GitHub repo and list them in <code>/pics/gallery.json</code> (see format below). They will appear here with a lightbox.</p>
-          <div id="photoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem"></div>
-          <details style="margin-top:.75rem"><summary>How to add photos</summary>
-            <ol class="list">
-              <li>Create a folder <code>pics/</code> at the repo root.</li>
-              <li>Add your images there (e.g., <code>team1.jpg</code>, <code>goal2.png</code>).</li>
-              <li>Create <code>pics/gallery.json</code> like this:
-<pre>{
+          <p class="help">Add images to <code>/pics/</code> and list them in <code>pics/gallery.json</code>. They’ll appear here in a mobile-friendly lightbox.</p>
+          <div id="photoGrid" class="pswp-gallery"></div>
+          <details style="margin-top:.75rem"><summary>Gallery file format</summary>
+            <pre>{
   "images": [
-    {"src": "pics/team1.jpg", "alt": "First practice"},
-    {"src": "pics/game1_goal.jpg", "alt": "Game 1 goal"}
+    {"src":"pics/team1.jpg","thumb":"pics/team1.jpg","w":1600,"h":1200,"alt":"First practice"}
   ]
 }</pre>
-              </li>
-            </ol>
           </details>
         </div>
       </section>
 
-      <!-- Calendar Panel -->
+      <!-- Calendar -->
       <section class="panel">
         <h2>Season Calendar</h2>
         <div class="content">
@@ -98,7 +92,7 @@
             <span><i class="dot break"></i> Break / No events</span>
           </div>
           <div id="calendar" class="calendar-wrap"></div>
-          <p class="help">Snack volunteer names automatically sync from the Google Sheet every few minutes. Click any event for details and practice plan.</p>
+          <p class="help">Snack volunteer names sync from the Google Sheet. Click any event for details.</p>
         </div>
       </section>
     </div>
@@ -114,7 +108,7 @@
     </section>
 
     <footer class="wrap">
-      <p class="help">Maintained by Coaches • Netlify + GitHub workflow. Photos are hosted from your repo. Snack sign‑ups are read‑only from Google Sheets; editing happens on the sheet.</p>
+      <p class="help">Maintained by Coaches • Netlify + GitHub workflow. Photos live in your repo.</p>
     </footer>
   </main>
 
@@ -122,38 +116,57 @@
     /***************************
      * CONFIG (edit as needed) *
      ***************************/
+    // Snacks Sheet
     const SHEET_ID = '1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E';
-    const SHEET_GID = '0'; // snack tab gid
+    const SHEET_GID = '0';
+
+    // Gallery JSON file in your repo
     const GALLERY_JSON = 'pics/gallery.json';
 
     /*********************
-     * Gallery rendering *
+     * PhotoSwipe loader *
      *********************/
     async function loadGallery(){
+      const grid = document.getElementById('photoGrid');
+      grid.innerHTML = '<span class="help">Loading photos…</span>';
       try{
         const res = await fetch(GALLERY_JSON, {cache:'no-store'});
-        if(!res.ok) throw new Error('no gallery');
+        if(!res.ok) throw new Error('gallery.json not found');
         const data = await res.json();
-        const grid = document.getElementById('photoGrid');
-        grid.innerHTML='';
-        (data.images||[]).forEach(img=>{
+        const images = Array.isArray(data.images) ? data.images : [];
+        if(!images.length) throw new Error('no images');
+
+        // Build grid markup (anchors PhotoSwipe understands)
+        grid.innerHTML = '';
+        for(const img of images){
           const a = document.createElement('a');
           a.href = img.src;
-          a.className = 'glightbox';
-          a.setAttribute('data-gallery','team');
-          a.title = img.alt||'';
+          if(img.w && img.h){
+            a.setAttribute('data-pswp-width', img.w);
+            a.setAttribute('data-pswp-height', img.h);
+          }
+          a.setAttribute('target','_blank');
+          a.setAttribute('rel','noopener');
           const el = document.createElement('img');
-          el.src = img.src;
-          el.alt = img.alt||'';
-          el.style.width='100%'; el.style.height='100%'; el.style.objectFit='cover'; el.style.borderRadius='10px';
-          el.loading='lazy';
+          el.src = img.thumb || img.src;
+          el.alt = img.alt || '';
+          el.loading = 'lazy';
           a.appendChild(el);
           grid.appendChild(a);
+        }
+
+        // Init PhotoSwipe (loaded as ES modules on demand)
+        const PhotoSwipeLightbox = (await import('https://unpkg.com/photoswipe@5/dist/photoswipe-lightbox.esm.js')).default;
+        const lightbox = new PhotoSwipeLightbox({
+          gallery: '#photoGrid',
+          children: 'a',
+          pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.js'),
         });
-        GLightbox({selector:'.glightbox'});
-      }catch(e){
-        const grid = document.getElementById('photoGrid');
-        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> to enable the gallery (see format above).</p>'
+        lightbox.init();
+
+      }catch(err){
+        console.warn('Gallery load error:', err);
+        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and your images to <code>/pics/</code>.</p>';
       }
     }
 
@@ -162,30 +175,15 @@
      *************************/
     function parseGvizDate(cell){
       if(!cell) return null;
-      // Case 1: GViz "Date(YYYY,MM,DD,...)" string
       if(typeof cell.v === 'string'){
-        const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)(?:,[^)]*)?\)$/);
-        if(m){
-          const y=+m[1], mth=+m[2], d=+m[3];
-          return new Date(y, mth, d); // months are 0-based here as expected by JS Date
-        }
+        const m = cell.v.match(/^Date\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
+        if(m){ return new Date(+m[1], +m[2], +m[3]); }
       }
-      // Case 2: formatted string
-      if(cell.f){
-        const d = new Date(cell.f);
-        if(!isNaN(d)) return d;
-      }
-      // Case 3: serial number
+      if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
       if(typeof cell.v === 'number'){
-        const ms = (cell.v - 25569) * 86400 * 1000;
-        const d = new Date(ms);
-        if(!isNaN(d)) return d;
+        const ms = (cell.v - 25569) * 86400 * 1000; const d = new Date(ms); if(!isNaN(d)) return d;
       }
-      // Case 4: plain string
-      if(typeof cell.v === 'string'){
-        const d = new Date(cell.v);
-        if(!isNaN(d)) return d;
-      }
+      if(typeof cell.v === 'string'){ const d = new Date(cell.v); if(!isNaN(d)) return d; }
       return null;
     }
 
@@ -194,16 +192,12 @@
         const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
         const res = await fetch(url, {cache:'no-store'});
         const text = await res.text();
-        const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+        const match = text.match(/google\\.visualization\\.Query\\.setResponse\\((.*)\\);/s);
         if(!match) throw new Error('GViz wrapper missing');
         const json = JSON.parse(match[1]);
         const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-        // Expecting columns: Week | Date | Name (case-insensitive)
         const dateIdx = cols.indexOf('date');
         const nameIdx = cols.indexOf('name');
-        if(dateIdx===-1 || nameIdx===-1){
-          console.warn('Expected Date/Name columns not found. Got:', cols);
-        }
         const rows = (json.table.rows||[]).map(r=>{
           const c = r.c||[];
           const d = parseGvizDate(c[dateIdx]);
@@ -332,7 +326,7 @@
         let displayTitle = title;
         if(cls==='game-event'){
           const key = new Date(dateStr); key.setHours(0,0,0,0);
-          const snack = snackMap?.get(key.getTime()); // Saturday only per your sheet
+          const snack = snackMap?.get(key.getTime());
           if(snack){ displayTitle += ` — Snacks: ${snack}`; }
         }
         E.push({ title: displayTitle, start: dt, allDay: true, classNames:[cls], extendedProps: extra });
@@ -386,16 +380,14 @@
     async function init(){
       await loadGallery();
 
-      // 1) Load snacks BEFORE building events so titles can include the names
       const rows = await fetchSnackRows();
       const snackMap = rowsToSnackMap(rows);
 
-      // 2) Build & render calendar
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
-        firstDay: 1, // Monday
+        firstDay: 1,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
         events: buildEvents(snackMap),
         eventClick: function(info){
@@ -410,7 +402,6 @@
       });
       calendar.render();
 
-      // 3) Periodically refresh snack names on game events (every 10 minutes)
       setInterval(async ()=>{
         const freshRows = await fetchSnackRows();
         const freshMap = rowsToSnackMap(freshRows);
