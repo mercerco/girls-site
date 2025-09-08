@@ -375,7 +375,7 @@
       const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
-        firstDay: 1,
+        firstDay: 0,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
         events: buildEvents(snackMap),
         eventClick: function(info){
