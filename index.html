@@ -6,7 +6,7 @@
   <title>1st Grade Girls Soccer — Fall 2025</title>
 
   <!-- FullCalendar -->
-  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/fullcalendar@6.1.15/main.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
   <!-- lightGallery -->
@@ -139,10 +139,15 @@
   function isoDate(d){if(!(d instanceof Date)||isNaN(d))return '';const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
   function parseGvizDate(cell){
     if(!cell) return null;
-    if(typeof cell.v==='string'){const m=cell.v.match(/^Date\((\d+),(\d+),(\d+)/);if(m){return new Date(+m[1],+m[2],+m[3]);}}
-    if(cell.f){const d=new Date(cell.f);if(!isNaN(d))return d;}
-    if(typeof cell.v==='number'){const ms=(cell.v-25569)*86400*1000;const d=new Date(ms);if(!isNaN(d))return d;}
-    if(typeof cell.v==='string'){const d=new Date(cell.v);if(!isNaN(d))return d;}
+    const v = (cell.v !== undefined && cell.v !== null) ? cell.v : cell.f;
+    if(typeof v==='string'){
+      const m=v.match(/(?:new\s+)?Date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      if(m) return new Date(+m[1],+m[2],+m[3]);
+      const d=new Date(v);if(!isNaN(d))return d;
+    }
+    if(typeof v==='number'){
+      const ms=(v-25569)*86400*1000;const d=new Date(ms);if(!isNaN(d))return d;
+    }
     return null;
   }
 
@@ -176,6 +181,7 @@
           endDate:dEnd?isoDate(dEnd):'',
           tournament:(asText(c[idx('tournament')])||'').toLowerCase()==='true'
         };
+        if(!row.type && /break/i.test(row.title||'')) row.type='break';
         return row.date?row:null;
       }).filter(Boolean);
       return rows;
