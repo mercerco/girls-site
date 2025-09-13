@@ -176,6 +176,8 @@
       return JSON.parse(m[1]);
     }
     function asText(cell){ return (cell?.v ?? '').toString().trim(); }
+// Normalize a Date object -> 'YYYY-MM-DD'
+function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
 
     /*************************
      * Snack sheet utilities *
@@ -224,28 +226,31 @@
      * Schedule loader *
      *******************/
     async function fetchScheduleRows(){
-      try{
-        const json = await fetchGviz(SCHEDULE_SHEET_ID, SCHEDULE_GID);
-        const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-        const idx = (name)=> cols.indexOf(name);
+  try{
+    const json = await fetchGviz(SCHEDULE_SHEET_ID, SCHEDULE_GID);
+    const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+    const idx = (name)=> cols.indexOf(name);
 
-        const rows = (json.table.rows||[]).map(r=>{
-          const c = r.c||[];
-          const row = {
-            date: asText(c[idx('date')]),
-            type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
-            title: asText(c[idx('title')]),
-            time: asText(c[idx('time')]),
-            location: asText(c[idx('location')]),
-            notes: asText(c[idx('notes')]),
-            endDate: asText(c[idx('enddate')]),
-            tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
-          };
-          return row.date ? row : null;
-        }).filter(Boolean);
+    const rows = (json.table.rows||[]).map(r=>{
+      const c = r.c||[];
+      const dStart = parseGvizDate(c[idx('date')]);
+      const dEnd   = parseGvizDate(c[idx('enddate')]);
+      const row = {
+        date: isoDate(dStart),
+        type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
+        title: asText(c[idx('title')]),
+        time: asText(c[idx('time')]),
+        location: asText(c[idx('location')]),
+        notes: asText(c[idx('notes')]),
+        endDate: dEnd ? isoDate(dEnd) : '',
+        tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
+      };
+      return row.date ? row : null;
+    }).filter(Boolean);
 
-        return rows;
-      }catch(e){ console.error('Schedule load failed', e); return []; }
+    return rows;
+  }catch(e){ console.error('Schedule load failed', e); return []; }
+}
     }
 
     function buildEventsFromRows(scheduleRows, snackMap){
