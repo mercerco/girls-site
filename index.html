@@ -250,7 +250,6 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
 
     return rows;
   }catch(e){ console.error('Schedule load failed', e); return []; }
-}
 
     function buildEventsFromRows(scheduleRows, snackMap){
       const events = [];
