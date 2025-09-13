@@ -311,10 +311,13 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
      * App bootstrap  *
      ******************/
     async function startCalendar(){
-      const [snackRows, scheduleRows] = await Promise.all([
-        fetchSnackRows(),
-        fetchScheduleRows()
-      ]);
+      let snackRows = [];
+      let scheduleRows = [];
+
+      // Fetch each independently so one failure doesn't kill the calendar
+      try { snackRows = await fetchSnackRows(); } catch (e) { console.error('Snack load error (non-fatal):', e); }
+      try { scheduleRows = await fetchScheduleRows(); } catch (e) { console.error('Schedule load error (non-fatal):', e); }
+
       const snackMap = rowsToSnackMap(snackRows);
 
       const calendarEl = document.getElementById('calendar');
@@ -344,20 +347,23 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
           return { html: `<div class="fc-title-main">${t}</div>` };
         }
       });
-      calendar.render();
+
+      try { calendar.render(); } catch (e) { console.error('FullCalendar render error:', e); }
 
       // Background refresh for snack names (every 10 min)
       setInterval(async ()=>{
-        const freshRows = await fetchSnackRows();
-        const freshMap = rowsToSnackMap(freshRows);
-        calendar.getEvents().forEach(ev=>{
-          if(ev.extendedProps?.type==='game'){
-            const d = new Date(ev.start); d.setHours(0,0,0,0);
-            const snack = freshMap.get(d.getTime());
-            const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
-            ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
-          }
-        })
+        try {
+          const freshRows = await fetchSnackRows();
+          const freshMap = rowsToSnackMap(freshRows);
+          calendar.getEvents().forEach(ev=>{
+            if(ev.extendedProps?.type==='game'){
+              const d = new Date(ev.start); d.setHours(0,0,0,0);
+              const snack = freshMap.get(d.getTime());
+              const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
+              ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
+            }
+          });
+        } catch (e) { console.error('Snack refresh failed (non-fatal):', e); }
       }, 10 * 60 * 1000);
     }
 
