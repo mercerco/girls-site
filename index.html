@@ -109,324 +109,275 @@
     </footer>
   </main>
 
-  <script>
-    /***************************
-     * CONFIG (edit as needed) *
-     ***************************/
-    const SHEET_ID = '1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E';
-    const SHEET_GID = '0';
-    const GALLERY_JSON = 'pics/gallery.json';
+ <script>
+  /***************************
+   * CONFIG (edit as needed) *
+   ***************************/
+  // Your master Google Sheet (the one you sent)
+  const SHEET_ID = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
 
-    /**********************
-     * Gallery (safe init) *
-     **********************/
-    function initLightGallery(){
-      try{
-        lightGallery(document.getElementById('photoGrid'), {
-          selector: 'a',
-          plugins: [lgZoom],
-          speed: 300
-        });
-      }catch(e){
-        console.error('lightGallery failed to init:', e);
-      }
-    }
+  // TAB for the season schedule (the link you provided)
+  const SCHEDULE_GID = '876110210';
 
-    async function loadGallery(){
-      const grid = document.getElementById('photoGrid');
-      grid.innerHTML = '<span class="help">Loading photos…</span>';
-      try{
-        const res = await fetch(GALLERY_JSON, {cache:'no-store'});
-        if(!res.ok) throw new Error('pics/gallery.json not found');
-        const data = await res.json();
-        const images = Array.isArray(data.images) ? data.images : [];
-        if(!images.length) throw new Error('No images in gallery.json');
+  // TAB for the snacks signup (keep '0' if snacks are on the first tab;
+  // otherwise set to that tab's gid after you open it and copy the number after gid=)
+  const SHEET_GID = '0';
 
-        grid.innerHTML = '';
-        for(const img of images){
-          const a = document.createElement('a');
-          a.href = img.src;
-          a.setAttribute('data-sub-html', img.alt || '');
-          const el = document.createElement('img');
-          el.src = img.thumb || img.src;
-          el.alt = img.alt || '';
-          el.loading = 'lazy';
-          a.appendChild(el);
-          grid.appendChild(a);
-        }
-        initLightGallery();
-      }catch(err){
-        console.warn('Gallery load error:', err);
-        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and images to <code>/pics/</code>.</p>';
-      }
-    }
+  // Gallery JSON path (unchanged; only used if you’re using local pics)
+  const GALLERY_JSON = 'pics/gallery.json';
 
-    /*************************
-     * Snack sheet utilities *
-     *************************/
-    function parseGvizDate(cell){
-      if(!cell) return null;
-      if(typeof cell.v === 'string'){
-        const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)/);
-        if(m){ return new Date(+m[1], +m[2], +m[3]); }
-      }
-      if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
-      if(typeof cell.v === 'number'){
-        const ms = (cell.v - 25569) * 86400 * 1000; const d = new Date(ms); if(!isNaN(d)) return d;
-      }
-      if(typeof cell.v === 'string'){ const d = new Date(cell.v); if(!isNaN(d)) return d; }
-      return null;
-    }
-
-    async function fetchSnackRows(){
-      try{
-        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
-        const res = await fetch(url, {cache:'no-store'});
-        const text = await res.text();
-        const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
-        if(!match) throw new Error('GViz wrapper missing');
-        const json = JSON.parse(match[1]);
-        const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-        const dateIdx = cols.indexOf('date');
-        const nameIdx = cols.indexOf('name');
-        const rows = (json.table.rows||[]).map(r=>{
-          const c = r.c||[];
-          const d = parseGvizDate(c[dateIdx]);
-          const name = (c[nameIdx]?.v||'').toString().trim();
-          if(d && !isNaN(d)) d.setHours(0,0,0,0);
-          return d ? {date:d, name} : null;
-        }).filter(Boolean);
-        console.log('Snack rows loaded:', rows);
-        return rows;
-      }catch(err){
-        console.error('Snack fetch failed', err);
-        return [];
-      }
-    }
-
-    function rowsToSnackMap(rows){
-      const map = new Map();
-      for(const r of rows){
-        const key = r.date.getTime();
-        if(r.name) map.set(key, r.name);
-      }
-      return map;
-    }
-
-    /*******************
-     * Practice plans  *
-     *******************/
-    const practicePlans = {
-      '2025-09-19': {
-  title: 'Preseason Practice',
-  location: 'Thunderbird Park, Field 1',
-  focus: 'Welcome, introductions, basic dribbling, comfort with ball.',
-  blocks: [
-    'Warm-Up: Name Game & Dribble Freeze (5 min)',
-    'Dribbling: Red Light/Green Light (8 min)',
-    'Dribbling: Follow the Leader (8 min)',
-    'Shooting: Shoot Past the Coach (8 min)',
-    'Scrimmage: 4v4 Free Play (12 min)',
-    'Team Cheer & Stickers (2 min)'
-  ],
-  equipment: 'Balls (1/player), Cones, Goal, Stickers'
-},
-
-      '2025-09-26': { title: 'Week 1 Practice', focus: 'Starting/stopping, ball control.', blocks: [
-        'Warm-Up: Cone Tag (5 min)',
-        'Dribbling: Red Light/Green Light + Yellow (8 min)',
-        'Dribbling: Treasure Hunt (8 min)',
-        'Passing: Partner Gates (8 min)',
-        'Scrimmage: 4v4 with Cones as Goals (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Small Goals' },
-      '2025-10-03': { title: 'Week 2 Practice', focus: 'Dribbling under pressure, awareness.', blocks: [
-        'Warm-Up: Freeze Tag with Balls (5 min)',
-        'Dribbling: Sharks & Minnows (8 min)',
-        'Dribbling: Knock the Cone (8 min)',
-        'Passing: Kick to Coach (8 min)',
-        'Scrimmage: 5v5 Free Play (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal' },
-      '2025-10-17': { title: 'Week 3 Practice', focus: 'Control in space, shooting.', blocks: [
-        'Warm-Up: Animal Races (5 min)',
-        'Dribbling: Treasure Hunt (8 min)',
-        'Dribbling: Traffic Jam (8 min)',
-        'Shooting: Shoot Past the Keeper (8 min)',
-        'Scrimmage: 5v5 (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal' },
-      '2025-10-24': { title: 'Week 4 Practice', focus: 'Passing introduction.', blocks: [
-        'Warm-Up: Chase the Coach (5 min)',
-        'Passing: Partner Gates (8 min)',
-        'Passing: Kick to Coach (8 min)',
-        'Shooting: Rapid Fire (8 min)',
-        'Scrimmage: 5v5 (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal' },
-      '2025-10-31': { title: 'Week 5 Practice — Halloween', focus: 'Keep dribbling fun & festive.', blocks: [
-        'Warm-Up: Pumpkin Patch Dribble Relay (5 min)',
-        'Dribbling: Trick-or-Treat Houses (8 min)',
-        'Passing: Ghost Gates (8 min)',
-        'Shooting: Monster Knockdown (8 min)',
-        'Scrimmage: Pumpkins vs Bats (12 min)',
-        'Big “BOO!” Cheer & Stickers (2 min)'
-      ], equipment: 'Balls, Cones, Goals, Halloween props (optional)' },
-      '2025-11-07': { title: 'Week 6 Practice', focus: 'Sharing the ball, passing while moving.', blocks: [
-        'Warm-Up: Simon Says (5 min)',
-        'Dribbling: Traffic Jam (8 min)',
-        'Passing: Partner Passing (8 min)',
-        'Shooting: Team Cannon Fire (8 min)',
-        'Scrimmage: 5v5 (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal, Pinnies (optional)' },
-      '2025-11-14': { title: 'Week 7 Practice', focus: 'Mastery of fundamentals.', blocks: [
-        'Warm-Up: Animal Tag (5 min)',
-        'Dribbling: Red Light/Green Light (8 min)',
-        'Passing: Gate Passing (8 min)',
-        'Shooting: Shoot Past the Keeper (8 min)',
-        'Scrimmage: 5v5 (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal' },
-      '2025-11-21': { title: 'Week 8 Practice', focus: 'Teamwork and fun variety.', blocks: [
-        'Warm-Up: Color Chaos (5 min)',
-        'Dribbling: Treasure Hunt (8 min)',
-        'Passing: Buddy Gates (8 min)',
-        'Shooting: Rapid Fire (8 min)',
-        'Scrimmage: Mini World Cup (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Colored Cones, Goal, Pinnies' },
-      '2025-12-05': { title: 'Week 9 Practice — Final Standard Week', focus: 'Fun and confidence.', blocks: [
-        'Warm-Up: Silly Tag (5 min)',
-        'Dribbling: Kids’ Choice Drill (8 min)',
-        'Passing: Kids’ Choice Drill (8 min)',
-        'Shooting: Rapid Fire (8 min)',
-        'Scrimmage: Parents vs Kids (12 min)',
-        'Awards & Cheer (3–5 min)'
-      ], equipment: 'Balls, Cones, Goal, Awards (stickers, medals)' },
-      '2025-12-12': { title: 'Week 10 Practice — Optional / Tournament Prep', focus: 'Light prep & fun before final game.', blocks: [
-        'Warm-Up: Favorite Drill from Season (5 min)',
-        'Dribbling: Treasure Hunt (8 min)',
-        'Passing: Partner Passing (8 min)',
-        'Shooting: Rapid Fire (8 min)',
-        'Scrimmage: Free Play 5v5 (12 min)',
-        'Team Cheer (2 min)'
-      ], equipment: 'Balls, Cones, Goal' }
-    };
-
-    /*******************
-     * Season calendar *
-     *******************/
-    function buildEvents(snackMap){
-      const E = [];
-      const add = (dateStr, title, cls, extra={})=>{
-        const dt = new Date(dateStr + 'T00:00:00');
-        let displayTitle = title;
-        if(cls==='game-event'){
-          const key = new Date(dateStr); key.setHours(0,0,0,0);
-          const snack = snackMap?.get(key.getTime());
-          if(snack){ displayTitle += ` — Snacks: ${snack}`; }
-        }
-        E.push({ title: displayTitle, start: dt, allDay: true, classNames:[cls], extendedProps: extra });
-      };
-
-      const breaks = [
-        {start:'2025-10-06', end:'2025-10-13', title:'FALL BREAK — No Practice or Games'},
-        {start:'2025-11-24', end:'2025-12-01', title:'THANKSGIVING BREAK — No Practice or Games'}
-      ];
-
-      const practices = [
-        '2025-09-19','2025-09-26','2025-10-03','2025-10-17','2025-10-24','2025-10-31','2025-11-07','2025-11-14','2025-11-21','2025-12-05','2025-12-12'
-      ];
-      practices.forEach(d=>{
-        const plan = practicePlans[d];
-        add(d, plan?`${plan.title} (Practice)`:'Practice', 'practice-event', {type:'practice', plan});
+  /**********************
+   * Gallery (safe init) *
+   **********************/
+  function initLightGallery(){
+    try{
+      lightGallery(document.getElementById('photoGrid'), {
+        selector: 'a',
+        plugins: [lgZoom],
+        speed: 300
       });
-
-      const games = [
-        '2025-09-27','2025-10-04','2025-10-18','2025-10-25','2025-11-01','2025-11-08','2025-11-15','2025-11-22','2025-12-06','2025-12-13'
-      ];
-      games.forEach((d, idx)=>{
-        const isTournament = d==='2025-12-13';
-        add(d, isTournament?`Tournament Game`:`Game ${idx+1}`, 'game-event', {type:'game', tournament:isTournament});
-      });
-
-      breaks.forEach(b=>{
-        E.push({ start: b.start, end: b.end, display: 'background', title: b.title, classNames:['break-event'] });
-        E.push({ title:b.title, start:b.start, allDay:true, classNames:['break-event'], extendedProps:{type:'break'} });
-      })
-      return E;
+    }catch(e){
+      console.error('lightGallery failed to init:', e);
     }
-
-    function renderPracticeDetails(plan){
-      const box = document.getElementById('practiceDetails');
-      if(!plan){ box.innerHTML = '<p class="help">No practice details for this date.</p>'; return; }
-      const list = plan.blocks.map(item=>`<li>${item}</li>`).join('');
-      box.innerHTML = `
-        <h3 style="margin:.25rem 0 0 0">${plan.title}</h3>
-        <p style="margin:.25rem 0;color:var(--muted)"><strong>Focus:</strong> ${plan.focus}</p>
-        <ul class="list">${list}</ul>
-        <p style="margin-top:.5rem"><strong>Equipment:</strong> ${plan.equipment}</p>
-        <p class="help">(Practice plans are adapted from our season coaching guide.)</p>
-      `;
-    }
-
-    /******************
-     * App bootstrap  *
-     ******************/
-    async function startCalendar(){
-      const rows = await fetchSnackRows();
-      const snackMap = rowsToSnackMap(rows);
-
-      const calendarEl = document.getElementById('calendar');
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        height: 'auto',
-        firstDay: 0,
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
-        events: buildEvents(snackMap),
-        eventClick: function(info){
-          const {extendedProps} = info.event;
-          if(extendedProps?.type==='practice'){
-            renderPracticeDetails(extendedProps.plan||null);
-            window.scrollTo({top: document.getElementById('practiceDetails').getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
-          } else if(extendedProps?.type==='game'){
-            alert(info.event.title);
-          }
-        },eventContent: function(arg) {
-  const t = arg.event.title || '';
-  const i = t.indexOf('Snacks:');
-  if (i >= 0) {
-    const main = t.slice(0, i).trim();
-    const snack = t.slice(i).trim();
-    return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
   }
-  return { html: `<div class="fc-title-main">${t}</div>` };
-},
 
+  async function loadGallery(){
+    const grid = document.getElementById('photoGrid');
+    grid.innerHTML = '<span class="help">Loading photos…</span>';
+    try{
+      const res = await fetch(GALLERY_JSON, {cache:'no-store'});
+      if(!res.ok) throw new Error('pics/gallery.json not found');
+      const data = await res.json();
+      const images = Array.isArray(data.images) ? data.images : [];
+      if(!images.length) throw new Error('No images in gallery.json');
+
+      grid.innerHTML = '';
+      for(const img of images){
+        const a = document.createElement('a');
+        a.href = img.src;
+        a.setAttribute('data-sub-html', img.alt || '');
+        const el = document.createElement('img');
+        el.src = img.thumb || img.src;
+        el.alt = img.alt || '';
+        el.loading = 'lazy';
+        a.appendChild(el);
+        grid.appendChild(a);
+      }
+      initLightGallery();
+    }catch(err){
+      console.warn('Gallery load error:', err);
+      grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and images to <code>/pics/</code>.</p>';
+    }
+  }
+
+  /*************************
+   * Google Sheet (GViz)   *
+   *************************/
+  async function fetchGviz(gid){
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
+    const res = await fetch(url, {cache:'no-store'});
+    const text = await res.text();
+    const m = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+    if(!m) throw new Error('GViz wrapper missing');
+    return JSON.parse(m[1]);
+  }
+  function asText(cell){ return (cell?.v ?? '').toString().trim(); }
+
+  /*************************
+   * Snack sheet utilities *
+   *************************/
+  function parseGvizDate(cell){
+    if(!cell) return null;
+    if(typeof cell.v === 'string'){
+      const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)/);
+      if(m){ return new Date(+m[1], +m[2], +m[3]); }
+    }
+    if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
+    if(typeof cell.v === 'number'){
+      const ms = (cell.v - 25569) * 86400 * 1000; const d = new Date(ms); if(!isNaN(d)) return d;
+    }
+    if(typeof cell.v === 'string'){ const d = new Date(cell.v); if(!isNaN(d)) return d; }
+    return null;
+  }
+
+  async function fetchSnackRows(){
+    try{
+      const json = await fetchGviz(SHEET_GID);
+      const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+      const dateIdx = cols.indexOf('date');
+      const nameIdx = cols.indexOf('name');
+      const rows = (json.table.rows||[]).map(r=>{
+        const c = r.c||[];
+        const d = parseGvizDate(c[dateIdx]);
+        const name = (c[nameIdx]?.v||'').toString().trim();
+        if(d && !isNaN(d)) d.setHours(0,0,0,0);
+        return d ? {date:d, name} : null;
+      }).filter(Boolean);
+      return rows;
+    }catch(err){
+      console.error('Snack fetch failed', err);
+      return [];
+    }
+  }
+
+  function rowsToSnackMap(rows){
+    const map = new Map();
+    for(const r of rows){
+      const key = r.date.getTime();
+      if(r.name) map.set(key, r.name);
+    }
+    return map;
+  }
+
+  /*******************
+   * Schedule loader *
+   *******************/
+  async function fetchScheduleRows(){
+    try{
+      const json = await fetchGviz(SCHEDULE_GID);
+      const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+      const idx = (name)=> cols.indexOf(name);
+
+      const rows = (json.table.rows||[]).map(r=>{
+        const c = r.c||[];
+        const row = {
+          date: asText(c[idx('date')]),
+          type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
+          title: asText(c[idx('title')]),
+          time: asText(c[idx('time')]),
+          location: asText(c[idx('location')]),
+          notes: asText(c[idx('notes')]),
+          endDate: asText(c[idx('enddate')]),
+          tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
+        };
+        return row.date ? row : null;
+      }).filter(Boolean);
+
+      return rows;
+    }catch(e){
+      console.error('Schedule load failed', e);
+      return [];
+    }
+  }
+
+  function buildEventsFromRows(scheduleRows, snackMap){
+    const events = [];
+
+    for(const r of scheduleRows){
+      if(r.type === 'break'){
+        if(r.endDate){
+          events.push({ start: r.date, end: r.endDate, display: 'background', title: r.title || 'No Events', classNames:['break-event'] });
+          events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
+        } else {
+          events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
+        }
+        continue;
+      }
+
+      let title = r.title || (r.type === 'practice' ? 'Practice' : 'Game');
+
+      if(r.time) title += ` · ${r.time}`;
+
+      if(r.type === 'game'){
+        const key = new Date(r.date); key.setHours(0,0,0,0);
+        const snack = snackMap?.get(key.getTime());
+        if(snack) title += ` — Snacks: ${snack}`;
+      }
+
+      events.push({
+        title,
+        start: r.date,
+        allDay: true,
+        classNames: [ r.type === 'practice' ? 'practice-event' : 'game-event' ],
+        extendedProps: {
+          type: r.type,
+          tournament: !!r.tournament,
+          meta: { location: r.location || '', notes: r.notes || '' }
+        }
       });
-      calendar.render();
-
-      // background refresh for snack names
-      setInterval(async ()=>{
-        const freshRows = await fetchSnackRows();
-        const freshMap = rowsToSnackMap(freshRows);
-        calendar.getEvents().forEach(ev=>{
-          if(ev.extendedProps?.type==='game'){
-            const d = new Date(ev.start); d.setHours(0,0,0,0);
-            const snack = freshMap.get(d.getTime());
-            const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
-            ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
-          }
-        })
-      }, 10 * 60 * 1000);
     }
 
-    // Run both; gallery failures won't block the calendar.
-    document.addEventListener('DOMContentLoaded', () => {
-      loadGallery().catch(()=>{});
-      startCalendar().catch(err=>console.error('Calendar init error:', err));
+    return events;
+  }
+
+  /*******************
+   * Practice details *
+   *******************/
+  function renderPracticeDetailsFromMeta(meta, titleText){
+    const box = document.getElementById('practiceDetails');
+    if(!meta){
+      box.innerHTML = '<p class="help">No practice details for this date.</p>';
+      return;
+    }
+    const locLine = meta.location ? `<p style="margin:.25rem 0"><strong>Location:</strong> ${meta.location}</p>` : '';
+    const notesHtml = meta.notes ? meta.notes.replace(/\n/g, '<br>') : '';
+    box.innerHTML = `
+      <h3 style="margin:.25rem 0 0 0">${titleText}</h3>
+      ${locLine}
+      ${notesHtml ? `<div style="margin-top:.25rem">${notesHtml}</div>` : '<p class="help">Add notes in the Google Sheet “Notes” column to show them here.</p>'}
+    `;
+  }
+
+  /******************
+   * App bootstrap  *
+   ******************/
+  async function startCalendar(){
+    const [snackRows, scheduleRows] = await Promise.all([
+      fetchSnackRows(),
+      fetchScheduleRows()
+    ]);
+    const snackMap = rowsToSnackMap(snackRows);
+
+    const calendarEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      height: 'auto',
+      firstDay: 0, // Sunday
+      headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+      events: buildEventsFromRows(scheduleRows, snackMap),
+      eventClick: function(info){
+        const {extendedProps} = info.event;
+        if(extendedProps?.type==='practice'){
+          renderPracticeDetailsFromMeta(extendedProps.meta, info.event.title);
+          window.scrollTo({top: document.getElementById('practiceDetails').getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
+        } else if(extendedProps?.type==='game'){
+          alert(info.event.title);
+        }
+      },
+      eventContent: function(arg){
+        const t = arg.event.title || '';
+        const i = t.indexOf('Snacks:');
+        if (i >= 0) {
+          const main = t.slice(0, i).trim();
+          const snack = t.slice(i).trim();
+          return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
+        }
+        return { html: `<div class="fc-title-main">${t}</div>` };
+      }
     });
-  </script>
+    calendar.render();
+
+    // Background refresh for snack names (every 10 min)
+    setInterval(async ()=>{
+      const freshRows = await fetchSnackRows();
+      const freshMap = rowsToSnackMap(freshRows);
+      calendar.getEvents().forEach(ev=>{
+        if(ev.extendedProps?.type==='game'){
+          const d = new Date(ev.start); d.setHours(0,0,0,0);
+          const snack = freshMap.get(d.getTime());
+          const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
+          ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
+        }
+      });
+    }, 10 * 60 * 1000);
+  }
+
+  // Run both; gallery failures won't block the calendar.
+  document.addEventListener('DOMContentLoaded', () => {
+    loadGallery().catch(()=>{});
+    startCalendar().catch(err=>console.error('Calendar init error:', err));
+  });
+</script>
+
 </body>
 </html>
