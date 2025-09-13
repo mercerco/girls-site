@@ -111,11 +111,11 @@
     /***************************
      * CONFIG (two-sheet setup) *
      ***************************/
-    // Schedule lives here:
+    // Schedule lives here
     const SCHEDULE_SHEET_ID = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
     const SCHEDULE_GID      = '876110210';
 
-    // Snacks live here:
+    // Snacks live here
     const SNACKS_SHEET_ID   = '1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E';
     const SNACKS_GID        = '0';
 
@@ -176,12 +176,7 @@
       return JSON.parse(m[1]);
     }
     function asText(cell){ return (cell?.v ?? '').toString().trim(); }
-// Normalize a Date object -> 'YYYY-MM-DD'
-function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
-
-    /*************************
-     * Snack sheet utilities *
-     *************************/
+    function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
     function parseGvizDate(cell){
       if(!cell) return null;
       if(typeof cell.v === 'string'){
@@ -196,6 +191,9 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
       return null;
     }
 
+    /*************************
+     * Snack sheet utilities *
+     *************************/
     async function fetchSnackRows(){
       try{
         const json = await fetchGviz(SNACKS_SHEET_ID, SNACKS_GID);
@@ -226,30 +224,31 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
      * Schedule loader *
      *******************/
     async function fetchScheduleRows(){
-  try{
-    const json = await fetchGviz(SCHEDULE_SHEET_ID, SCHEDULE_GID);
-    const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-    const idx = (name)=> cols.indexOf(name);
+      try{
+        const json = await fetchGviz(SCHEDULE_SHEET_ID, SCHEDULE_GID);
+        const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+        const idx = (name)=> cols.indexOf(name);
 
-    const rows = (json.table.rows||[]).map(r=>{
-      const c = r.c||[];
-      const dStart = parseGvizDate(c[idx('date')]);
-      const dEnd   = parseGvizDate(c[idx('enddate')]);
-      const row = {
-        date: isoDate(dStart),
-        type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
-        title: asText(c[idx('title')]),
-        time: asText(c[idx('time')]),
-        location: asText(c[idx('location')]),
-        notes: asText(c[idx('notes')]),
-        endDate: dEnd ? isoDate(dEnd) : '',
-        tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
-      };
-      return row.date ? row : null;
-    }).filter(Boolean);
+        const rows = (json.table.rows||[]).map(r=>{
+          const c = r.c||[];
+          const dStart = parseGvizDate(c[idx('date')]);
+          const dEnd   = parseGvizDate(c[idx('enddate')]);
+          const row = {
+            date: isoDate(dStart),
+            type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
+            title: asText(c[idx('title')]),
+            time: asText(c[idx('time')]),
+            location: asText(c[idx('location')]),
+            notes: asText(c[idx('notes')]),
+            endDate: dEnd ? isoDate(dEnd) : '',
+            tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
+          };
+          return row.date ? row : null;
+        }).filter(Boolean);
 
-    return rows;
-  }catch(e){ console.error('Schedule load failed', e); return []; }
+        return rows;
+      }catch(e){ console.error('Schedule load failed', e); return []; }
+    }
 
     function buildEventsFromRows(scheduleRows, snackMap){
       const events = [];
@@ -295,7 +294,10 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
      *******************/
     function renderPracticeDetailsFromMeta(meta, titleText){
       const box = document.getElementById('practiceDetails');
-      if(!meta){ box.innerHTML = '<p class="help">No practice details for this date.</p>'; return; }
+      if(!meta){
+        box.innerHTML = '<p class="help">No practice details for this date.</p>';
+        return;
+      }
       const locLine = meta.location ? `<p style="margin:.25rem 0"><strong>Location:</strong> ${meta.location}</p>` : '';
       const notesHtml = meta.notes ? meta.notes.replace(/\n/g, '<br>') : '';
       box.innerHTML = `
@@ -340,12 +342,11 @@ function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>
           if (i >= 0) {
             const main = t.slice(0, i).trim();
             const snack = t.slice(i).trim();
-            return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
+            return { html: `<div class=\"fc-title-main\">${main}</div><div class=\"fc-title-snack\">${snack}</div>` };
           }
-          return { html: `<div class="fc-title-main">${t}</div>` };
+          return { html: `<div class=\"fc-title-main\">${t}</div>` };
         }
       });
-
       try { calendar.render(); } catch (e) { console.error('FullCalendar render error:', e); }
 
       // Background refresh for snack names (every 10 min)
