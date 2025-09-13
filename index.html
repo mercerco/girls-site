@@ -9,7 +9,7 @@
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
-  <!-- lightGallery (UMD builds = safest on Netlify) -->
+  <!-- lightGallery (UMD builds) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/css/lightgallery-bundle.min.css">
   <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/lightgallery.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/plugins/zoom/lg-zoom.umd.min.js"></script>
@@ -73,9 +73,7 @@
       <section class="panel" id="gallery">
         <h2>Team Photos</h2>
         <div class="content">
-          
           <div id="photoGrid"></div>
-          
         </div>
       </section>
 
@@ -89,7 +87,7 @@
             <span><i class="dot break"></i> Break / No events</span>
           </div>
           <div id="calendar" class="calendar-wrap"></div>
-          <p class="help">Snack volunteer names sync from the Google Sheet. Click any event for details.</p>
+          <p class="help">Snack volunteer names sync from the Google Snacks sheet. Click any practice to see details below.</p>
         </div>
       </section>
     </div>
@@ -105,279 +103,264 @@
     </section>
 
     <footer class="wrap">
-      <p class="help">Maintained by Soccer Mom Mercer • Netlify + GitHub workflow. Send us pics for the gallery via text! If anything is glitching please let us know! </p>
+      <p class="help">Maintained by Soccer Mom Mercer • Netlify + GitHub workflow. Send us pics for the gallery via text! If anything is glitching please let us know!</p>
     </footer>
   </main>
 
- <script>
-  /***************************
-   * CONFIG (edit as needed) *
-   ***************************/
-  // Your master Google Sheet (the one you sent)
-  const SHEET_ID = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
+  <script>
+    /***************************
+     * CONFIG (two-sheet setup) *
+     ***************************/
+    // Schedule lives here:
+    const SCHEDULE_SHEET_ID = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
+    const SCHEDULE_GID      = '876110210';
 
-  // TAB for the season schedule (the link you provided)
-  const SCHEDULE_GID = '876110210';
+    // Snacks live here:
+    const SNACKS_SHEET_ID   = '1frw_HQAlR-vH48VQEKm-zzwbq0J9wjpRHH7LpZVVm4E';
+    const SNACKS_GID        = '0';
 
-  // TAB for the snacks signup (keep '0' if snacks are on the first tab;
-  // otherwise set to that tab's gid after you open it and copy the number after gid=)
-  const SHEET_GID = '0';
+    // Local gallery JSON (optional)
+    const GALLERY_JSON      = 'pics/gallery.json';
 
-  // Gallery JSON path (unchanged; only used if you’re using local pics)
-  const GALLERY_JSON = 'pics/gallery.json';
+    /**********************
+     * Gallery (safe init) *
+     **********************/
+    function initLightGallery(){
+      try{
+        lightGallery(document.getElementById('photoGrid'), {
+          selector: 'a',
+          plugins: [lgZoom],
+          speed: 300
+        });
+      }catch(e){ console.error('lightGallery failed to init:', e); }
+    }
 
-  /**********************
-   * Gallery (safe init) *
-   **********************/
-  function initLightGallery(){
-    try{
-      lightGallery(document.getElementById('photoGrid'), {
-        selector: 'a',
-        plugins: [lgZoom],
-        speed: 300
+    async function loadGallery(){
+      const grid = document.getElementById('photoGrid');
+      grid.innerHTML = '<span class="help">Loading photos…</span>';
+      try{
+        const res = await fetch(GALLERY_JSON, {cache:'no-store'});
+        if(!res.ok) throw new Error('pics/gallery.json not found');
+        const data = await res.json();
+        const images = Array.isArray(data.images) ? data.images : [];
+        if(!images.length) throw new Error('No images in gallery.json');
+
+        grid.innerHTML = '';
+        for(const img of images){
+          const a = document.createElement('a');
+          a.href = img.src;
+          a.setAttribute('data-sub-html', img.alt || '');
+          const el = document.createElement('img');
+          el.src = img.thumb || img.src;
+          el.alt = img.alt || '';
+          el.loading = 'lazy';
+          a.appendChild(el);
+          grid.appendChild(a);
+        }
+        initLightGallery();
+      }catch(err){
+        console.warn('Gallery load error:', err);
+        grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format) and images to <code>/pics/</code>.</p>';
+      }
+    }
+
+    /*************************
+     * Google Sheet (GViz)   *
+     *************************/
+    async function fetchGviz(sheetId, gid){
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}`;
+      const res = await fetch(url, {cache:'no-store'});
+      const text = await res.text();
+      const m = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+      if(!m) throw new Error('GViz wrapper missing');
+      return JSON.parse(m[1]);
+    }
+    function asText(cell){ return (cell?.v ?? '').toString().trim(); }
+
+    /*************************
+     * Snack sheet utilities *
+     *************************/
+    function parseGvizDate(cell){
+      if(!cell) return null;
+      if(typeof cell.v === 'string'){
+        const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)/);
+        if(m){ return new Date(+m[1], +m[2], +m[3]); }
+      }
+      if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
+      if(typeof cell.v === 'number'){
+        const ms = (cell.v - 25569) * 86400 * 1000; const d = new Date(ms); if(!isNaN(d)) return d;
+      }
+      if(typeof cell.v === 'string'){ const d = new Date(cell.v); if(!isNaN(d)) return d; }
+      return null;
+    }
+
+    async function fetchSnackRows(){
+      try{
+        const json = await fetchGviz(SNACKS_SHEET_ID, SNACKS_GID);
+        const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+        const dateIdx = cols.indexOf('date');
+        const nameIdx = cols.indexOf('name');
+        const rows = (json.table.rows||[]).map(r=>{
+          const c = r.c||[];
+          const d = parseGvizDate(c[dateIdx]);
+          const name = (c[nameIdx]?.v||'').toString().trim();
+          if(d && !isNaN(d)) d.setHours(0,0,0,0);
+          return d ? {date:d, name} : null;
+        }).filter(Boolean);
+        return rows;
+      }catch(err){ console.error('Snack fetch failed', err); return []; }
+    }
+
+    function rowsToSnackMap(rows){
+      const map = new Map();
+      for(const r of rows){
+        const key = r.date.getTime();
+        if(r.name) map.set(key, r.name);
+      }
+      return map;
+    }
+
+    /*******************
+     * Schedule loader *
+     *******************/
+    async function fetchScheduleRows(){
+      try{
+        const json = await fetchGviz(SCHEDULE_SHEET_ID, SCHEDULE_GID);
+        const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
+        const idx = (name)=> cols.indexOf(name);
+
+        const rows = (json.table.rows||[]).map(r=>{
+          const c = r.c||[];
+          const row = {
+            date: asText(c[idx('date')]),
+            type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
+            title: asText(c[idx('title')]),
+            time: asText(c[idx('time')]),
+            location: asText(c[idx('location')]),
+            notes: asText(c[idx('notes')]),
+            endDate: asText(c[idx('enddate')]),
+            tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
+          };
+          return row.date ? row : null;
+        }).filter(Boolean);
+
+        return rows;
+      }catch(e){ console.error('Schedule load failed', e); return []; }
+    }
+
+    function buildEventsFromRows(scheduleRows, snackMap){
+      const events = [];
+
+      for(const r of scheduleRows){
+        if(r.type === 'break'){
+          if(r.endDate){
+            events.push({ start: r.date, end: r.endDate, display: 'background', title: r.title || 'No Events', classNames:['break-event'] });
+            events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
+          } else {
+            events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
+          }
+          continue;
+        }
+
+        let title = r.title || (r.type === 'practice' ? 'Practice' : 'Game');
+        if(r.time) title += ` · ${r.time}`;
+
+        if(r.type === 'game'){
+          const key = new Date(r.date); key.setHours(0,0,0,0);
+          const snack = snackMap?.get(key.getTime());
+          if(snack) title += ` — Snacks: ${snack}`;
+        }
+
+        events.push({
+          title,
+          start: r.date,
+          allDay: true,
+          classNames: [ r.type === 'practice' ? 'practice-event' : 'game-event' ],
+          extendedProps: {
+            type: r.type,
+            tournament: !!r.tournament,
+            meta: { location: r.location || '', notes: r.notes || '' }
+          }
+        });
+      }
+
+      return events;
+    }
+
+    /*******************
+     * Practice details *
+     *******************/
+    function renderPracticeDetailsFromMeta(meta, titleText){
+      const box = document.getElementById('practiceDetails');
+      if(!meta){ box.innerHTML = '<p class="help">No practice details for this date.</p>'; return; }
+      const locLine = meta.location ? `<p style="margin:.25rem 0"><strong>Location:</strong> ${meta.location}</p>` : '';
+      const notesHtml = meta.notes ? meta.notes.replace(/\n/g, '<br>') : '';
+      box.innerHTML = `
+        <h3 style="margin:.25rem 0 0 0">${titleText}</h3>
+        ${locLine}
+        ${notesHtml ? `<div style="margin-top:.25rem">${notesHtml}</div>` : '<p class="help">Add notes in the Google Sheet “Notes” column to show them here.</p>'}
+      `;
+    }
+
+    /******************
+     * App bootstrap  *
+     ******************/
+    async function startCalendar(){
+      const [snackRows, scheduleRows] = await Promise.all([
+        fetchSnackRows(),
+        fetchScheduleRows()
+      ]);
+      const snackMap = rowsToSnackMap(snackRows);
+
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        firstDay: 0, // Sunday
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+        events: buildEventsFromRows(scheduleRows, snackMap),
+        eventClick: function(info){
+          const {extendedProps} = info.event;
+          if(extendedProps?.type==='practice'){
+            renderPracticeDetailsFromMeta(extendedProps.meta, info.event.title);
+            window.scrollTo({top: document.getElementById('practiceDetails').getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
+          } else if(extendedProps?.type==='game'){
+            alert(info.event.title);
+          }
+        },
+        eventContent: function(arg){
+          const t = arg.event.title || '';
+          const i = t.indexOf('Snacks:');
+          if (i >= 0) {
+            const main = t.slice(0, i).trim();
+            const snack = t.slice(i).trim();
+            return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
+          }
+          return { html: `<div class="fc-title-main">${t}</div>` };
+        }
       });
-    }catch(e){
-      console.error('lightGallery failed to init:', e);
-    }
-  }
+      calendar.render();
 
-  async function loadGallery(){
-    const grid = document.getElementById('photoGrid');
-    grid.innerHTML = '<span class="help">Loading photos…</span>';
-    try{
-      const res = await fetch(GALLERY_JSON, {cache:'no-store'});
-      if(!res.ok) throw new Error('pics/gallery.json not found');
-      const data = await res.json();
-      const images = Array.isArray(data.images) ? data.images : [];
-      if(!images.length) throw new Error('No images in gallery.json');
-
-      grid.innerHTML = '';
-      for(const img of images){
-        const a = document.createElement('a');
-        a.href = img.src;
-        a.setAttribute('data-sub-html', img.alt || '');
-        const el = document.createElement('img');
-        el.src = img.thumb || img.src;
-        el.alt = img.alt || '';
-        el.loading = 'lazy';
-        a.appendChild(el);
-        grid.appendChild(a);
-      }
-      initLightGallery();
-    }catch(err){
-      console.warn('Gallery load error:', err);
-      grid.innerHTML = '<p class="help">Add <code>pics/gallery.json</code> (see format above) and images to <code>/pics/</code>.</p>';
-    }
-  }
-
-  /*************************
-   * Google Sheet (GViz)   *
-   *************************/
-  async function fetchGviz(gid){
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
-    const res = await fetch(url, {cache:'no-store'});
-    const text = await res.text();
-    const m = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
-    if(!m) throw new Error('GViz wrapper missing');
-    return JSON.parse(m[1]);
-  }
-  function asText(cell){ return (cell?.v ?? '').toString().trim(); }
-
-  /*************************
-   * Snack sheet utilities *
-   *************************/
-  function parseGvizDate(cell){
-    if(!cell) return null;
-    if(typeof cell.v === 'string'){
-      const m = cell.v.match(/^Date\((\d+),\s*(\d+),\s*(\d+)/);
-      if(m){ return new Date(+m[1], +m[2], +m[3]); }
-    }
-    if(cell.f){ const d = new Date(cell.f); if(!isNaN(d)) return d; }
-    if(typeof cell.v === 'number'){
-      const ms = (cell.v - 25569) * 86400 * 1000; const d = new Date(ms); if(!isNaN(d)) return d;
-    }
-    if(typeof cell.v === 'string'){ const d = new Date(cell.v); if(!isNaN(d)) return d; }
-    return null;
-  }
-
-  async function fetchSnackRows(){
-    try{
-      const json = await fetchGviz(SHEET_GID);
-      const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-      const dateIdx = cols.indexOf('date');
-      const nameIdx = cols.indexOf('name');
-      const rows = (json.table.rows||[]).map(r=>{
-        const c = r.c||[];
-        const d = parseGvizDate(c[dateIdx]);
-        const name = (c[nameIdx]?.v||'').toString().trim();
-        if(d && !isNaN(d)) d.setHours(0,0,0,0);
-        return d ? {date:d, name} : null;
-      }).filter(Boolean);
-      return rows;
-    }catch(err){
-      console.error('Snack fetch failed', err);
-      return [];
-    }
-  }
-
-  function rowsToSnackMap(rows){
-    const map = new Map();
-    for(const r of rows){
-      const key = r.date.getTime();
-      if(r.name) map.set(key, r.name);
-    }
-    return map;
-  }
-
-  /*******************
-   * Schedule loader *
-   *******************/
-  async function fetchScheduleRows(){
-    try{
-      const json = await fetchGviz(SCHEDULE_GID);
-      const cols = json.table.cols.map(c => (c.label||'').toLowerCase());
-      const idx = (name)=> cols.indexOf(name);
-
-      const rows = (json.table.rows||[]).map(r=>{
-        const c = r.c||[];
-        const row = {
-          date: asText(c[idx('date')]),
-          type: asText(c[idx('type')]).toLowerCase(),     // practice | game | break
-          title: asText(c[idx('title')]),
-          time: asText(c[idx('time')]),
-          location: asText(c[idx('location')]),
-          notes: asText(c[idx('notes')]),
-          endDate: asText(c[idx('enddate')]),
-          tournament: (asText(c[idx('tournament')]) || '').toLowerCase() === 'true'
-        };
-        return row.date ? row : null;
-      }).filter(Boolean);
-
-      return rows;
-    }catch(e){
-      console.error('Schedule load failed', e);
-      return [];
-    }
-  }
-
-  function buildEventsFromRows(scheduleRows, snackMap){
-    const events = [];
-
-    for(const r of scheduleRows){
-      if(r.type === 'break'){
-        if(r.endDate){
-          events.push({ start: r.date, end: r.endDate, display: 'background', title: r.title || 'No Events', classNames:['break-event'] });
-          events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
-        } else {
-          events.push({ title: r.title || 'No Events', start: r.date, allDay: true, classNames:['break-event'], extendedProps:{type:'break'} });
-        }
-        continue;
-      }
-
-      let title = r.title || (r.type === 'practice' ? 'Practice' : 'Game');
-
-      if(r.time) title += ` · ${r.time}`;
-
-      if(r.type === 'game'){
-        const key = new Date(r.date); key.setHours(0,0,0,0);
-        const snack = snackMap?.get(key.getTime());
-        if(snack) title += ` — Snacks: ${snack}`;
-      }
-
-      events.push({
-        title,
-        start: r.date,
-        allDay: true,
-        classNames: [ r.type === 'practice' ? 'practice-event' : 'game-event' ],
-        extendedProps: {
-          type: r.type,
-          tournament: !!r.tournament,
-          meta: { location: r.location || '', notes: r.notes || '' }
-        }
-      });
+      // Background refresh for snack names (every 10 min)
+      setInterval(async ()=>{
+        const freshRows = await fetchSnackRows();
+        const freshMap = rowsToSnackMap(freshRows);
+        calendar.getEvents().forEach(ev=>{
+          if(ev.extendedProps?.type==='game'){
+            const d = new Date(ev.start); d.setHours(0,0,0,0);
+            const snack = freshMap.get(d.getTime());
+            const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
+            ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
+          }
+        })
+      }, 10 * 60 * 1000);
     }
 
-    return events;
-  }
-
-  /*******************
-   * Practice details *
-   *******************/
-  function renderPracticeDetailsFromMeta(meta, titleText){
-    const box = document.getElementById('practiceDetails');
-    if(!meta){
-      box.innerHTML = '<p class="help">No practice details for this date.</p>';
-      return;
-    }
-    const locLine = meta.location ? `<p style="margin:.25rem 0"><strong>Location:</strong> ${meta.location}</p>` : '';
-    const notesHtml = meta.notes ? meta.notes.replace(/\n/g, '<br>') : '';
-    box.innerHTML = `
-      <h3 style="margin:.25rem 0 0 0">${titleText}</h3>
-      ${locLine}
-      ${notesHtml ? `<div style="margin-top:.25rem">${notesHtml}</div>` : '<p class="help">Add notes in the Google Sheet “Notes” column to show them here.</p>'}
-    `;
-  }
-
-  /******************
-   * App bootstrap  *
-   ******************/
-  async function startCalendar(){
-    const [snackRows, scheduleRows] = await Promise.all([
-      fetchSnackRows(),
-      fetchScheduleRows()
-    ]);
-    const snackMap = rowsToSnackMap(snackRows);
-
-    const calendarEl = document.getElementById('calendar');
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
-      height: 'auto',
-      firstDay: 0, // Sunday
-      headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
-      events: buildEventsFromRows(scheduleRows, snackMap),
-      eventClick: function(info){
-        const {extendedProps} = info.event;
-        if(extendedProps?.type==='practice'){
-          renderPracticeDetailsFromMeta(extendedProps.meta, info.event.title);
-          window.scrollTo({top: document.getElementById('practiceDetails').getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
-        } else if(extendedProps?.type==='game'){
-          alert(info.event.title);
-        }
-      },
-      eventContent: function(arg){
-        const t = arg.event.title || '';
-        const i = t.indexOf('Snacks:');
-        if (i >= 0) {
-          const main = t.slice(0, i).trim();
-          const snack = t.slice(i).trim();
-          return { html: `<div class="fc-title-main">${main}</div><div class="fc-title-snack">${snack}</div>` };
-        }
-        return { html: `<div class="fc-title-main">${t}</div>` };
-      }
+    // Run both; gallery failures won't block the calendar.
+    document.addEventListener('DOMContentLoaded', () => {
+      loadGallery().catch(()=>{});
+      startCalendar().catch(err=>console.error('Calendar init error:', err));
     });
-    calendar.render();
-
-    // Background refresh for snack names (every 10 min)
-    setInterval(async ()=>{
-      const freshRows = await fetchSnackRows();
-      const freshMap = rowsToSnackMap(freshRows);
-      calendar.getEvents().forEach(ev=>{
-        if(ev.extendedProps?.type==='game'){
-          const d = new Date(ev.start); d.setHours(0,0,0,0);
-          const snack = freshMap.get(d.getTime());
-          const baseTitle = ev.title.replace(/ — Snacks: .+$/, '');
-          ev.setProp('title', snack ? `${baseTitle} — Snacks: ${snack}` : baseTitle);
-        }
-      });
-    }, 10 * 60 * 1000);
-  }
-
-  // Run both; gallery failures won't block the calendar.
-  document.addEventListener('DOMContentLoaded', () => {
-    loadGallery().catch(()=>{});
-    startCalendar().catch(err=>console.error('Calendar init error:', err));
-  });
-</script>
-
+  </script>
 </body>
 </html>
