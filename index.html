@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>1st Grade Girls Soccer — Fall 2025</title>
-  <link rel="icon" href="data:"><!-- prevent favicon 404 locally -->
+  <link rel="icon" href="data:"><!-- prevent local favicon 404 -->
 
-  <!-- FullCalendar CSS + JS -->
+  <!-- FullCalendar (CSS + JS) -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
@@ -50,13 +50,16 @@
 
     /* fun background image (place girls-site/img/soccer-bg.jpg) */
     body{ background: linear-gradient(rgba(255,255,255,.65), rgba(255,255,255,.65)), url('img/soccer-bg.jpg') center / cover fixed no-repeat; }
+
+    /* Make anchor-jumps land below sticky header */
+    #practiceDetails{ scroll-margin-top: 96px; }
   </style>
 </head>
 <body>
   <header>
     <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
       <div class="brand">
-        <span class="logo-emoji" role="img" aria-label="soccer ball">⚽</span>
+        <span class="logo-emoji" aria-label="soccer ball">⚽</span>
         <h1>1st Grade Girls Soccer — Fall 2025</h1>
       </div>
       <nav class="nav">
@@ -82,14 +85,16 @@
             <span><i class="dot break"></i> Break / No events</span>
           </div>
           <div id="calendar" class="calendar-wrap"></div>
-          <p class="help">Snack volunteer names sync from the Google Snacks sheet. Click any practice to see details below.</p>
+          <p class="help">Snack volunteer names sync from the Google Snacks sheet. Tap any event to see details below.</p>
         </div>
       </section>
     </div>
 
     <section class="panel" style="margin-top:1rem">
       <h2>Practice Details</h2>
-      <div class="content"><div id="practiceDetails"><p class="help">Select a practice in the calendar to see the plan here.</p></div></div>
+      <div class="content">
+        <div id="practiceDetails"><p class="help">Select an event in the calendar to see details here.</p></div>
+      </div>
     </section>
 
     <footer class="wrap">
@@ -98,19 +103,18 @@
   </main>
 
   <script>
-  // ===== Config (shared Sheet with multiple tabs) =====
+  // ===== Config (girls tabs on your shared sheet) =====
   const SHEET_ID   = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
-  const SCHEDULE_GID = '0';          // Girls schedule tab
-  const SNACKS_GID   = '1087193536'; // Girls snacks tab
-  const PICS_GID     = '1228515147'; // Girls pics tab
+  const SCHEDULE_GID = '0';              // Girls schedule tab
+  const SNACKS_GID   = '1087193536';     // Girls snacks
+  const PICS_GID     = '1228515147';     // Girls pics
 
-  // ===== lightGallery =====
+  // ===== Lightbox =====
   function initLightGallery(){
     try{ lightGallery(document.getElementById('photoGrid'), { selector:'a', plugins:[lgZoom], speed:300, licenseKey:'0000-0000-000-0000' }); }catch(e){}
   }
 
-  // ===== Google Drive helpers
-  // Convert any Drive link (/file/d/.../view or ...?id=) to reliable image URLs
+  // ===== Drive link helpers (work with any Drive link) =====
   function driveLinks(u){
     if(!u) return { full:'', thumb:'', view:'' };
     let id='';
@@ -120,8 +124,8 @@
     }catch(e){}
     if(!id) return { full:u, thumb:u, view:u };
     return {
-      full:  `https://drive.google.com/thumbnail?id=${id}&sz=w2000`, // large image for lightbox
-      thumb: `https://drive.google.com/thumbnail?id=${id}&sz=w600`,  // small thumbnail
+      full:  `https://drive.google.com/thumbnail?id=${id}&sz=w2000`, // large for lightbox
+      thumb: `https://drive.google.com/thumbnail?id=${id}&sz=w600`,  // grid thumb
       view:  `https://drive.google.com/uc?export=view&id=${id}`      // fallback
     };
   }
@@ -151,7 +155,7 @@
     if(typeof v==='number'){ const ms=(v-25569)*86400*1000; const d=new Date(ms); if(!isNaN(d)) return d; }
     return null;
   }
-  // Optional time parsing (handles Excel time like Date(1899,11,30,h,m,s))
+  // Excel/Sheets time helpers (optional)
   const pad2=n=>String(n).padStart(2,'0');
   function formatHM(h,m){ let H=((h%24)+24)%24; const ampm=H>=12?'PM':'AM'; const h12=H%12||12; return `${h12}:${pad2(m)} ${ampm}`; }
   function parseGvizTime(cell){
@@ -221,12 +225,12 @@
         grid.innerHTML='';
         for(const img of rows){
           const a=document.createElement('a');
-          a.href = img.src;                 // large image (Drive thumbnail w2000)
+          a.href = img.src;
           a.setAttribute('data-src', img.src);
           a.setAttribute('data-sub-html', img.alt || 'Go Team');
 
           const el=document.createElement('img');
-          el.src = img.thumb || img.view || img.src; // fast thumb
+          el.src = img.thumb || img.view || img.src;
           el.alt = img.alt || '';
           el.loading = 'lazy';
           el.onerror = () => { if(img.view && el.src !== img.view){ el.src = img.view; } };
@@ -259,6 +263,7 @@
         const d=parseGvizDate(c[dateIdx]);
         let name=(c[nameIdx]?.v||'').toString().trim();
         if(/^(tbd|—|-)?$/i.test(name)) name='';
+        if(d&&!isNaN(d)) d.setHours(0,0,0,0);
         return d?{date: isoDate(d), name}:null;
       }).filter(Boolean);
       return rows;
@@ -295,7 +300,7 @@
           date: dStart?isoDate(dStart):'',
           type: (asText(c[idxs.type])||'').toLowerCase(),
           title: asText(c[idxs.title]),
-          time: parseGvizTime(c[idxs.time]),
+          time: parseGvizTime(c[idxs.time]) || asText(c[idxs.time]),
           location: asText(c[idxs.location]),
           notes: asText(c[idxs.notes]),
           endDate: dEnd?isoDate(dEnd):'',
@@ -327,30 +332,39 @@
       }
 
       let title = titleWithTime;
-      if(r.type==='game'){
-        const snack = snackMap.get(r.date);
-        if(snack) title += ` — Snacks: ${snack}`;
-      }
+      const snack = r.type==='game' ? (snackMap.get(r.date) || '') : '';
+      if(snack) title += ` — Snacks: ${snack}`;
 
       events.push({
         title,
         start:r.date,
         allDay:true,
         classNames:[r.type==='practice'?'practice-event':'game-event'],
-        extendedProps:{ type:r.type, tournament:!!r.tournament, meta:{location:r.location||'', notes:r.notes||''} }
+        extendedProps:{
+          type:r.type,
+          snack,
+          tournament:!!r.tournament,
+          meta:{location:r.location||'', notes:r.notes||''}
+        }
       });
     }
     return events;
   }
 
-  function renderPracticeDetailsFromMeta(meta,titleText){
+  // ===== Details (unified for BOTH practice & game) + smooth jump =====
+  function renderDetails({type, meta, snack}, titleText){
     const box=document.getElementById('practiceDetails');
-    if(!meta){ box.innerHTML='<p class="help">No practice details.</p>'; return; }
-    const locLine=meta.location?`<p><strong>Location:</strong> ${meta.location}</p>`:'';
-    const notesHtml=meta.notes?meta.notes.replace(/\n/g,'<br>'):'';
-    box.innerHTML=`<h3>${titleText}</h3>${locLine}${notesHtml?`<div>${notesHtml}</div>`:'<p class="help">Add notes in sheet.</p>'}`;
+    const locLine = meta?.location ? `<p><strong>Location:</strong> ${meta.location}</p>` : '';
+    const snackLine = (type==='game' && snack) ? `<p><strong>Snacks:</strong> ${snack}</p>` : '';
+    const notesHtml = meta?.notes ? meta.notes.replace(/\n/g,'<br>') : '';
+    box.innerHTML =
+      `<h3>${titleText}</h3>${locLine}${snackLine}` +
+      (notesHtml ? `<div>${notesHtml}</div>` : '<p class="help">Add notes in sheet.</p>');
+    // Smooth scroll into view (accounts for sticky header via CSS scroll-margin-top)
+    box.scrollIntoView({behavior:'smooth', block:'start'});
   }
 
+  // ===== Bootstrap =====
   async function startCalendar(){
     let snackRows=[], scheduleRows=[];
     try{ snackRows=await fetchSnackRows(); }catch(e){ console.error('snacks',e); }
@@ -362,8 +376,21 @@
       initialView:'dayGridMonth', height:'auto', firstDay:0,
       headerToolbar:{ left:'prev,next today', center:'title', right:'dayGridMonth,listMonth' },
       events: buildEventsFromRows(scheduleRows, snackMap),
-      eventClick:function(info){ const {extendedProps}=info.event; if(extendedProps?.type==='practice'){ renderPracticeDetailsFromMeta(extendedProps.meta, info.event.title); } else if(extendedProps?.type==='game'){ alert(info.event.title); } },
-      eventContent:function(arg){ const t=arg.event.title||''; const i=t.indexOf('Snacks:'); if(i>=0){ const main=t.slice(0,i).trim(); const snack=t.slice(i).trim(); return { html:`<div>${main}</div><div>${snack}</div>` }; } return { html:`<div>${t}</div>` }; }
+      eventClick:function(info){
+        const {extendedProps}=info.event;
+        // Use the same renderer for both practices and games
+        renderDetails(extendedProps, info.event.title);
+      },
+      eventContent:function(arg){
+        const t=arg.event.title||'';
+        const i=t.indexOf('Snacks:');
+        if(i>=0){
+          const main=t.slice(0,i).trim();
+          const snack=t.slice(i).trim();
+          return { html:`<div>${main}</div><div>${snack}</div>` };
+        }
+        return { html:`<div>${t}</div>` };
+      }
     });
     calendar.render();
   }
