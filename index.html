@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>1st Grade Girls Soccer — Fall 2025</title>
+  <link rel="icon" href="data:"><!-- prevent favicon 404 locally -->
+
+  <!-- FullCalendar CSS + JS -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
+  <!-- lightGallery (photo lightbox) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/css/lightgallery-bundle.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/lightgallery.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightgallery@2.7.2/plugins/zoom/lg-zoom.umd.min.js"></script>
+
+  <style>
+    :root{ --bg:#f8fafc; --panel:#ffffff; --text:#0f172a; --muted:#475569; --accent:#0ea5e9; --game:#b45309; --practice:#10b981; --break:#64748b; }
+    html,body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    a{color:var(--accent);text-decoration:none}
+    header{position:sticky;top:0;background:rgba(255,255,255,.9);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid #e5e7eb;z-index:20}
+    .wrap{max-width:1100px;margin:0 auto;padding:1rem}
+    .brand{display:flex;gap:.75rem;align-items:center}
+    .brand h1{font-size:1.25rem;margin:0}
+    .nav{display:flex;gap:1rem;align-items:center}
+    .grid{display:grid;grid-template-columns:1fr;gap:1rem}
+    @media(min-width:980px){.grid{grid-template-columns:320px 1fr}}
+    .panel{background:var(--panel);border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 6px 24px rgba(2,6,23,.06)}
+    .panel h2{margin:0;padding:1rem 1rem .5rem 1rem;border-bottom:1px solid #f1f5f9;font-size:1.125rem}
+    .panel .content{padding:1rem}
+    .legend{display:flex;gap:.5rem;flex-wrap:wrap}
+    .legend span{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem}
+    .dot{width:.75rem;height:.75rem;border-radius:999px;display:inline-block}
+    .dot.practice{background:var(--practice)}
+    .dot.game{background:var(--game)}
+    .dot.break{background:var(--break)}
+    .calendar-wrap{padding:1rem}
+    .fc .practice-event{background:var(--practice)!important;border-color:var(--practice)!important}
+    .fc .game-event{background:var(--game)!important;border-color:var(--game)!important}
+    .fc .break-event{background:var(--break)!important;border-color:var(--break)!important}
+    .help{font-size:.9rem;color:var(--muted)}
+    footer{padding:2rem 0;color:var(--muted)}
+    #photoGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+    #photoGrid a{display:block;border-radius:10px;overflow:hidden}
+    #photoGrid img{width:100%;height:100%;object-fit:cover;display:block}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;background:var(--text);color:#fff;padding:.6rem .9rem;border-radius:12px}
+    .btn:hover{opacity:.9}
+    .btn.secondary{background:#111827}
+
+    /* fun background image (place girls-site/img/soccer-bg.jpg) */
+    body{ background: linear-gradient(rgba(255,255,255,.65), rgba(255,255,255,.65)), url('img/soccer-bg.jpg') center / cover fixed no-repeat; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div class="brand">
+        <span class="logo-emoji" role="img" aria-label="soccer ball">⚽</span>
+        <h1>1st Grade Girls Soccer — Fall 2025</h1>
+      </div>
+      <nav class="nav">
+        <a class="btn" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg/edit?gid=1087193536#gid=1087193536">🍎 Snack Sign-Up (Live Sheet)</a>
+        <a class="btn secondary" href="#gallery">📷 Photos</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="grid">
+      <section class="panel" id="gallery">
+        <h2>Team Photos</h2>
+        <div class="content"><div id="photoGrid"></div></div>
+      </section>
+
+      <section class="panel">
+        <h2>Season Calendar</h2>
+        <div class="content">
+          <div class="legend" style="margin-bottom:.5rem">
+            <span><i class="dot practice"></i> Practice (Fridays)</span>
+            <span><i class="dot game"></i> Game (Saturdays)</span>
+            <span><i class="dot break"></i> Break / No events</span>
+          </div>
+          <div id="calendar" class="calendar-wrap"></div>
+          <p class="help">Snack volunteer names sync from the Google Snacks sheet. Click any practice to see details below.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top:1rem">
+      <h2>Practice Details</h2>
+      <div class="content"><div id="practiceDetails"><p class="help">Select a practice in the calendar to see the plan here.</p></div></div>
+    </section>
+
+    <footer class="wrap">
+      <p class="help">Maintained by Soccer Mom Mercer • Netlify + GitHub workflow. Send us pics for the gallery via text! If anything is glitching please let us know!</p>
+    </footer>
+  </main>
+
+  <script>
+  // ===== Config (shared Sheet with multiple tabs) =====
+  const SHEET_ID   = '1t5dFCm_IfS1mc6034GU1Isyh-FuoFFz--6jUgtM5ZIg';
+  const SCHEDULE_GID = '0';          // Girls schedule tab
+  const SNACKS_GID   = '1087193536'; // Girls snacks tab
+  const PICS_GID     = '1228515147'; // Girls pics tab
+
+  // ===== lightGallery =====
+  function initLightGallery(){
+    try{ lightGallery(document.getElementById('photoGrid'), { selector:'a', plugins:[lgZoom], speed:300, licenseKey:'0000-0000-000-0000' }); }catch(e){}
+  }
+
+  // ===== Google Drive helpers
+  // Convert any Drive link (/file/d/.../view or ...?id=) to reliable image URLs
+  function driveLinks(u){
+    if(!u) return { full:'', thumb:'', view:'' };
+    let id='';
+    try{
+      const m = u.match(/\/file\/d\/([A-Za-z0-9_-]+)/) || u.match(/[?&]id=([A-Za-z0-9_-]+)/);
+      if(m) id = m[1];
+    }catch(e){}
+    if(!id) return { full:u, thumb:u, view:u };
+    return {
+      full:  `https://drive.google.com/thumbnail?id=${id}&sz=w2000`, // large image for lightbox
+      thumb: `https://drive.google.com/thumbnail?id=${id}&sz=w600`,  // small thumbnail
+      view:  `https://drive.google.com/uc?export=view&id=${id}`      // fallback
+    };
+  }
+
+  // ===== GViz helpers =====
+  async function fetchGviz(gid){
+    const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
+    const res=await fetch(url,{cache:'no-store'});
+    const text=await res.text();
+    const m=text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+    if(!m) throw new Error('GViz wrapper missing');
+    return JSON.parse(m[1]);
+  }
+  const norm = s => (s??'').toString().toLowerCase().replace(/\s+|#/g,'');
+  function asText(cell){ return (cell?.v ?? '').toString().trim(); }
+  function isoDate(d){ if(!(d instanceof Date) || isNaN(d)) return ''; const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+  function parseGvizDate(cell){
+    if(!cell) return null;
+    const v=(cell.v!==undefined&&cell.v!==null)?cell.v:cell.f;
+    if(typeof v==='string'){
+      let m=v.match(/(?:new\s+)?Date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      if(m) return new Date(+m[1],+m[2],+m[3]);
+      m=v.match(/^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/);
+      if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+      const d=new Date(v); if(!isNaN(d)) return d;
+    }
+    if(typeof v==='number'){ const ms=(v-25569)*86400*1000; const d=new Date(ms); if(!isNaN(d)) return d; }
+    return null;
+  }
+  // Optional time parsing (handles Excel time like Date(1899,11,30,h,m,s))
+  const pad2=n=>String(n).padStart(2,'0');
+  function formatHM(h,m){ let H=((h%24)+24)%24; const ampm=H>=12?'PM':'AM'; const h12=H%12||12; return `${h12}:${pad2(m)} ${ampm}`; }
+  function parseGvizTime(cell){
+    if(!cell) return '';
+    const v=(cell.v!==undefined&&cell.v!==null)?cell.v:cell.f;
+    if(typeof v==='string'){
+      const m=v.match(/Date\(\s*1899\s*,\s*11\s*,\s*30\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      if(m) return formatHM(+m[1],+m[2]);
+      return v.trim();
+    }
+    if(typeof v==='number'){
+      if(v>=0 && v<1){ const total=Math.round(v*86400); const h=Math.floor(total/3600); const m=Math.floor((total%3600)/60); return formatHM(h,m); }
+    }
+    return '';
+  }
+
+  function findHeadersByRowValues(rows, wanted){
+    const maxProbe = Math.min(rows.length, 8);
+    for(let r=0;r<maxProbe;r++){
+      const labels=(rows[r]?.c||[]).map(c=>norm(c?.v??c?.f??''));
+      const idxs={}; let ok=true;
+      for(const key in wanted){
+        const i = labels.findIndex(x=>wanted[key].includes(x));
+        if(i===-1){ ok=false; break; }
+        idxs[key]=i;
+      }
+      if(ok) return {headerRow:r, idxs};
+    }
+    return null;
+  }
+
+  // ===== Gallery from Pics sheet =====
+  async function fetchGalleryFromSheet(){
+    try{
+      const json = await fetchGviz(PICS_GID);
+      let cols = (json.table.cols||[]).map(c => norm(c.label));
+      let headerRow = 0;
+      if (!cols.some(Boolean)){
+        const found = findHeadersByRowValues(json.table.rows||[], {src:['src','image','url']});
+        if(found){ cols = (json.table.rows[found.headerRow]?.c||[]).map(c=>norm(c?.v??c?.f??'')); headerRow = found.headerRow+1; }
+      }
+      const pick = names => { for(const n of names){ const i=cols.indexOf(n); if(i>-1) return i; } return -1; };
+      const srcIdx   = pick(['src','image','url']);
+      const thumbIdx = pick(['thumb','thumbnail','preview']);
+      const altIdx   = pick(['alt','caption','title']);
+      if (srcIdx === -1) return [];
+
+      const rows = (json.table.rows||[]).slice(headerRow).map(r=>{
+        const c=r.c||[];
+        const rawSrc   = (c[srcIdx]?.v   ?? c[srcIdx]?.f   ?? '').toString().trim();
+        const rawThumb = (thumbIdx>-1 ? (c[thumbIdx]?.v ?? c[thumbIdx]?.f ?? '') : '').toString().trim();
+        const s = driveLinks(rawSrc);
+        const t = rawThumb ? driveLinks(rawThumb) : s;
+        const alt = (altIdx>-1 ? (c[altIdx]?.v ?? c[altIdx]?.f ?? '') : '').toString().trim();
+        return s.full ? { src:s.full, thumb:t.thumb, view:s.view, alt } : null;
+      }).filter(Boolean);
+      return rows;
+    }catch(e){ console.warn('Gallery sheet fetch failed', e); return []; }
+  }
+
+  async function loadGallery(){
+    const grid=document.getElementById('photoGrid');
+    grid.innerHTML='<span class="help">Loading photos…</span>';
+    try{
+      const rows = await fetchGalleryFromSheet();
+      if(rows.length){
+        grid.innerHTML='';
+        for(const img of rows){
+          const a=document.createElement('a');
+          a.href = img.src;                 // large image (Drive thumbnail w2000)
+          a.setAttribute('data-src', img.src);
+          a.setAttribute('data-sub-html', img.alt || 'Go Team');
+
+          const el=document.createElement('img');
+          el.src = img.thumb || img.view || img.src; // fast thumb
+          el.alt = img.alt || '';
+          el.loading = 'lazy';
+          el.onerror = () => { if(img.view && el.src !== img.view){ el.src = img.view; } };
+
+          a.appendChild(el);
+          grid.appendChild(a);
+        }
+        initLightGallery();
+      }else{
+        grid.innerHTML='<p class="help">Add rows to the <strong>Pics</strong> sheet (src, thumb, alt).</p>';
+      }
+    }catch(_){ grid.innerHTML='<p class="help">Add rows to the <strong>Pics</strong> sheet (src, thumb, alt).</p>'; }
+  }
+
+  // ===== Snacks =====
+  async function fetchSnackRows(){
+    try{
+      const json=await fetchGviz(SNACKS_GID);
+      let cols=(json.table.cols||[]).map(c=>norm(c.label));
+      let dateIdx = cols.indexOf('date');
+      let nameIdx = cols.indexOf('name');
+      let startRow=0;
+      if(dateIdx===-1 || nameIdx===-1){
+        const found=findHeadersByRowValues(json.table.rows||[], { date:['date','gamedate','day'], name:['name','snack','snacks','volunteer','snackvolunteer'] });
+        if(found){ startRow=found.headerRow+1; dateIdx=found.idxs.date; nameIdx=found.idxs.name; }
+        else { dateIdx=1; nameIdx=2; startRow=1; }
+      }
+      const rows=(json.table.rows||[]).slice(startRow).map(r=>{
+        const c=r.c||[];
+        const d=parseGvizDate(c[dateIdx]);
+        let name=(c[nameIdx]?.v||'').toString().trim();
+        if(/^(tbd|—|-)?$/i.test(name)) name='';
+        return d?{date: isoDate(d), name}:null;
+      }).filter(Boolean);
+      return rows;
+    }catch(e){ console.error('Snack fetch failed',e); return []; }
+  }
+  function rowsToSnackMap(rows){ const map=new Map(); for(const r of rows){ if(r.name) map.set(r.date, r.name); } return map; }
+
+  // ===== Schedule =====
+  async function fetchScheduleRows(){
+    try{
+      const json=await fetchGviz(SCHEDULE_GID);
+      let cols=(json.table.cols||[]).map(c=>norm(c.label));
+      const wantedKeys={
+        date:['date','startdate','start'],
+        endDate:['enddate','end','through'],
+        type:['type','event','eventtype'],
+        title:['title','eventtitle','name'],
+        time:['time','starttime'],
+        location:['location','field'],
+        notes:['notes','details','description'],
+        tournament:['tournament','playoffs','final']
+      };
+      let idxs={}; let startRow=0;
+      for(const k in wantedKeys){ idxs[k]=wantedKeys[k].map(n=>cols.indexOf(n)).find(i=>i>-1) ?? -1; }
+      if(idxs.date===-1){
+        const found=findHeadersByRowValues(json.table.rows||[], wantedKeys);
+        if(found){ startRow=found.headerRow+1; idxs=found.idxs; }
+      }
+      const rows=(json.table.rows||[]).slice(startRow).map(r=>{
+        const c=r.c||[];
+        const dStart=parseGvizDate(c[idxs.date]);
+        const dEnd  =parseGvizDate(c[idxs.endDate]);
+        const row={
+          date: dStart?isoDate(dStart):'',
+          type: (asText(c[idxs.type])||'').toLowerCase(),
+          title: asText(c[idxs.title]),
+          time: parseGvizTime(c[idxs.time]),
+          location: asText(c[idxs.location]),
+          notes: asText(c[idxs.notes]),
+          endDate: dEnd?isoDate(dEnd):'',
+          tournament: (asText(c[idxs.tournament])||'').toLowerCase()==='true'
+        };
+        if(!row.type && /break|off|no\s*practice|no\s*game/i.test(row.title||'')) row.type='break';
+        return row.date?row:null;
+      }).filter(Boolean);
+      return rows;
+    }catch(e){ console.error('Schedule load failed', e); return []; }
+  }
+
+  function buildEventsFromRows(scheduleRows,snackMap){
+    const events=[]; const seen=new Set();
+    for(const r of scheduleRows){
+      const titleBase = r.title || (r.type==='practice'?'Practice':'Game');
+      const titleWithTime = r.time ? `${titleBase} · ${r.time}` : titleBase;
+      const key = `${r.date}|${r.type}|${titleWithTime}`;
+      if(seen.has(key)) continue; seen.add(key);
+
+      if(r.type==='break'){
+        if(r.endDate){
+          events.push({start:r.date,end:r.endDate,display:'background',title:r.title||'No Events',classNames:['break-event']});
+          events.push({title:r.title||'No Events',start:r.date,allDay:true,classNames:['break-event'],extendedProps:{type:'break'}});
+        }else{
+          events.push({title:r.title||'No Events',start:r.date,allDay:true,classNames:['break-event'],extendedProps:{type:'break'}});
+        }
+        continue;
+      }
+
+      let title = titleWithTime;
+      if(r.type==='game'){
+        const snack = snackMap.get(r.date);
+        if(snack) title += ` — Snacks: ${snack}`;
+      }
+
+      events.push({
+        title,
+        start:r.date,
+        allDay:true,
+        classNames:[r.type==='practice'?'practice-event':'game-event'],
+        extendedProps:{ type:r.type, tournament:!!r.tournament, meta:{location:r.location||'', notes:r.notes||''} }
+      });
+    }
+    return events;
+  }
+
+  function renderPracticeDetailsFromMeta(meta,titleText){
+    const box=document.getElementById('practiceDetails');
+    if(!meta){ box.innerHTML='<p class="help">No practice details.</p>'; return; }
+    const locLine=meta.location?`<p><strong>Location:</strong> ${meta.location}</p>`:'';
+    const notesHtml=meta.notes?meta.notes.replace(/\n/g,'<br>'):'';
+    box.innerHTML=`<h3>${titleText}</h3>${locLine}${notesHtml?`<div>${notesHtml}</div>`:'<p class="help">Add notes in sheet.</p>'}`;
+  }
+
+  async function startCalendar(){
+    let snackRows=[], scheduleRows=[];
+    try{ snackRows=await fetchSnackRows(); }catch(e){ console.error('snacks',e); }
+    try{ scheduleRows=await fetchScheduleRows(); }catch(e){ console.error('schedule',e); }
+    const snackMap=rowsToSnackMap(snackRows);
+
+    const calendarEl=document.getElementById('calendar');
+    const calendar=new FullCalendar.Calendar(calendarEl,{
+      initialView:'dayGridMonth', height:'auto', firstDay:0,
+      headerToolbar:{ left:'prev,next today', center:'title', right:'dayGridMonth,listMonth' },
+      events: buildEventsFromRows(scheduleRows, snackMap),
+      eventClick:function(info){ const {extendedProps}=info.event; if(extendedProps?.type==='practice'){ renderPracticeDetailsFromMeta(extendedProps.meta, info.event.title); } else if(extendedProps?.type==='game'){ alert(info.event.title); } },
+      eventContent:function(arg){ const t=arg.event.title||''; const i=t.indexOf('Snacks:'); if(i>=0){ const main=t.slice(0,i).trim(); const snack=t.slice(i).trim(); return { html:`<div>${main}</div><div>${snack}</div>` }; } return { html:`<div>${t}</div>` }; }
+    });
+    calendar.render();
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{ loadGallery().catch(()=>{}); startCalendar().catch(e=>console.error('init',e)); });
+  </script>
+</body>
+</html>
